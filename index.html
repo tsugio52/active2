@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第2回 行為と変分自由エネルギー シミュレーション</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>:root{
+  /* palette matches the lecture slides: navy text, orange accent, pale-blue and grey cards */
+  --ink:#1E3A5F; --accent:#E68728; --blue:#5B7FA6; --deep:#2E6DA4;
+  --card:#D6E4F0; --grey:#E8E8E8; --bg:#F7F9FB; --white:#FFFFFF; --muted:#5d6f84;
+  --font:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.6}
+header{padding:18px 20px 6px;max-width:1180px;margin:0 auto}
+h1{font-size:1.55rem;margin:0 0 4px;text-wrap:balance}
+header p{margin:0;color:var(--muted)}
+nav{display:flex;flex-wrap:wrap;gap:8px;padding:10px 20px;max-width:1180px;margin:0 auto}
+nav a{padding:8px 14px;border-radius:8px;background:var(--grey);color:var(--ink);text-decoration:none;font-weight:700}
+nav a.on{background:var(--ink);color:var(--white)}
+nav a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+main{max-width:1180px;margin:0 auto;padding:6px 20px 40px}
+section.view{display:none} section.view.on{display:block}
+.lead{margin:4px 0 14px;max-width:70ch}
+.grid{display:grid;grid-template-columns:minmax(260px,330px) 1fr;gap:18px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--white);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(30,58,95,.12)}
+.panel h2{font-size:1.05rem;margin:0 0 10px;color:var(--accent)}
+.ctl{margin:0 0 14px}
+.ctl label{display:flex;justify-content:space-between;font-weight:700;font-size:.95rem}
+.ctl label output{font-variant-numeric:tabular-nums;color:var(--accent)}
+.ctl small{display:block;color:var(--muted);font-size:.8rem;line-height:1.4}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+button{font-family:inherit;font-size:.95rem;font-weight:700;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;background:var(--card);color:var(--ink)}
+button.main{background:var(--accent);color:var(--white)}
+button.dark{background:var(--ink);color:var(--white)}
+button:hover{filter:brightness(.95)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--card);border-radius:10px;padding:10px 12px}
+.tile.grey{background:var(--grey)}
+.tile b{display:block;font-size:.82rem;color:var(--muted);font-weight:700}
+.tile span{font-size:1.45rem;font-weight:700;font-variant-numeric:tabular-nums}
+.tile span.acc{color:var(--accent)}
+.note{background:var(--grey);border-radius:10px;padding:10px 14px;font-size:.92rem;margin-top:12px}
+.note b{color:var(--accent)}
+svg{width:100%;height:auto;display:block}
+svg text{font-family:var(--font);fill:var(--ink)}
+.log{font-size:.88rem;max-height:150px;overflow:auto;background:var(--bg);border-radius:8px;padding:6px 10px;font-variant-numeric:tabular-nums}
+.try{counter-reset:t;list-style:none;padding:0;margin:8px 0 0}
+.try li{counter-increment:t;padding-left:28px;position:relative;margin:4px 0}
+.try li::before{content:counter(t);position:absolute;left:0;top:2px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:.78rem;display:grid;place-items:center;font-weight:700}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>第2回　行為も推論：シミュレーション</h1>
+  <p>Active Inference の考え方のうち、知覚と行為の役割分担と、変分自由エネルギー F の3つの見方を確かめます。</p>
+</header>
+<nav>
+  <a href="#thermo">① 体温エージェント：心を変えるか、世界を変えるか</a>
+  <a href="#ffree">② F の3つの見方</a>
+</nav>
+<main>
+
+<section class="view" id="thermo">
+  <p class="lead">暑い部屋にいる生きものです。体温は放っておくと上がっていきます。生きものは「体温は 37°C のはず」という事前の信念をもち、知覚（信念を変える）と行為（窓を開ける）の両方で、予測と感覚のずれを減らします。事前の確信度で、どちらが主に働くかが変わります。</p>
+  <div class="grid">
+    <div class="panel">
+      <h2>生きものの設定</h2>
+      <div class="ctl"><label for="pp">事前の確信度（37°C への自信） <output id="pp_o"></output></label><input type="range" id="pp" min="0.05" max="16" step="0.05" value="8"><small>大きいほど「37°C のはず」をゆずらない</small></div>
+      <div class="ctl"><label for="ps">感覚の精度 <output id="ps_o"></output></label><input type="range" id="ps" min="0.2" max="4" step="0.1" value="1"></div>
+      <div class="ctl"><label for="ta">部屋の暑さ（放っておいたときの体温） <output id="ta_o"></output></label><input type="range" id="ta" min="37" max="41" step="0.1" value="39.5"></div>
+      <div class="ctl"><label for="mode">使える道</label>
+        <select id="mode" style="width:100%;padding:8px;border-radius:8px;font-family:inherit;font-size:.95rem">
+          <option value="both">知覚と行為の両方</option>
+          <option value="perc">知覚だけ（窓を開けられない）</option>
+          <option value="act">行為だけ（信念は37°Cのまま）</option>
+        </select></div>
+      <div class="btns"><button class="main" id="play">▶ 再生</button><button id="reset">最初から</button></div>
+      <div class="btns"><button id="weak">確信が弱い生きもの</button><button id="strong">確信が強い生きもの</button></div>
+      <div class="note"><b>やってみよう</b>
+        <ol class="try">
+          <li>「確信が強い」：信念は37°Cのまま、窓が開いて体温が下がる（行為）</li>
+          <li>「確信が弱い」：信念が体温に合わせて上がり、窓はあまり開かない（知覚）</li>
+          <li>「知覚だけ」にすると、体温は高いまま</li>
+        </ol>
+      </div>
+    </div>
+    <div>
+      <div class="tiles">
+        <div class="tile"><b>体温（本当）</b><span id="tT"></span></div>
+        <div class="tile"><b>信念 μ（推定した体温）</b><span class="acc" id="tMu"></span></div>
+        <div class="tile grey"><b>窓の開き</b><span id="tA"></span></div>
+        <div class="tile grey"><b>F（ずれの大きさ）</b><span id="tF"></span></div>
+      </div>
+      <div class="panel"><svg id="tempChart"></svg><div id="tLeg"></div></div>
+      <div class="panel" style="margin-top:14px"><svg id="actChart"></svg><div id="aLeg"></div></div>
+    </div>
+  </div>
+  <div class="note" style="max-width:100%"><b>モデルのしくみ（予測符号化の簡単な形）</b>　F ＝ ½Π<sub>感覚</sub>(感覚 − μ)² ＋ ½Π<sub>事前</sub>(μ − 37)²。
+    知覚は F を下げる向きに μ を動かし、行為は感覚と予測のずれ（感覚 − μ）が正のあいだ窓を開けます。窓には少しずつ閉じていく性質（行為のコスト）を入れてあります。数値は、考え方を見るための例です。</div>
+</section>
+
+<section class="view" id="ffree">
+  <p class="lead">リンゴとカエルの例で、信念 Q(カエル) を動かすと F がどう変わるかを見ます。F の3つの書き方は、どれも同じ値になります。F がいちばん小さいのは Q が本当の事後分布と一致したときで、そのとき F はサプライズと等しくなります。</p>
+  <div class="grid">
+    <div class="panel">
+      <h2>信念と観察</h2>
+      <div class="ctl"><label for="q">信念 Q(カエル) <output id="q_o"></output></label><input type="range" id="q" min="0.01" max="0.99" step="0.01" value="0.5"></div>
+      <div class="ctl"><label for="obs2">観察</label>
+        <select id="obs2" style="width:100%;padding:8px;border-radius:8px;font-family:inherit;font-size:.95rem"><option value="1">跳んだ</option><option value="0">跳ばなかった</option></select></div>
+      <div class="ctl"><label for="pf2">事前 P(カエル) <output id="pf2_o"></output></label><input type="range" id="pf2" min="0.01" max="0.99" step="0.01" value="0.1"></div>
+      <div class="btns"><button class="main" id="opt">Q を最適にする（知覚）</button></div>
+      <div class="note"><b>やってみよう</b>
+        <ol class="try">
+          <li>Q を動かして、3行がいつも同じ値か確かめる</li>
+          <li>「Q を最適にする」：ダイバージェンスが 0、F ＝ サプライズ</li>
+          <li>観察を「跳ばなかった」に変える（行為で観察を変えるイメージ）：サプライズの土台そのものが下がる</li>
+        </ol>
+      </div>
+    </div>
+    <div>
+      <div class="tiles">
+        <div class="tile"><b>F</b><span class="acc" id="fF"></span></div>
+        <div class="tile grey"><b>サプライズ −ln P(y)</b><span id="fS"></span></div>
+        <div class="tile grey"><b>ダイバージェンス</b><span id="fD"></span></div>
+        <div class="tile"><b>本当の事後 P(カエル｜y)</b><span id="fPost"></span></div>
+      </div>
+      <div class="panel"><svg id="threeRows"></svg></div>
+      <div class="panel" style="margin-top:14px"><svg id="fCurve"></svg><div id="fLeg"></div></div>
+    </div>
+  </div>
+</section>
+</main>
+<script>const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+const ln = Math.log;
+function xlogx(p) { return p > 0 ? p * Math.log(p) : 0; }
+function H(ps) { return -ps.reduce((s, p) => s + xlogx(p), 0); }
+function KL(q, p) { let s = 0; q.forEach((qi, i) => { if (qi > 0) s += qi * (Math.log(qi) - Math.log(p[i])); }); return s; }
+function f2(x, d = 2) { if (!isFinite(x)) return "∞"; const v = Math.abs(x) < 0.5 * Math.pow(10, -d) ? 0 : x; return v.toFixed(d); }
+const C = { ink: "#1E3A5F", acc: "#E68728", blue: "#5B7FA6", deep: "#2E6DA4", card: "#D6E4F0", grey: "#E8E8E8", mut: "#5d6f84", line: "#A6A6A6" };
+function bind(id, fn) { const i = document.getElementById(id); const o = document.getElementById(id + "_o"); const up = () => { if (o) o.value = fn ? fn(+i.value) : i.value; }; i.addEventListener("input", () => { up(); render(); }); up(); return i; }
+function val(id) { return +document.getElementById(id).value; }
+function setVal(id, v) { const i = document.getElementById(id); i.value = v; i.dispatchEvent(new Event("input")); }
+// simple bar chart: items [{label, v, color}], max value, svg width/height
+function barsV(svg, items, opt) {
+  const W = opt.w || 420, Hh = opt.h || 220, top = 28, bot = 34, max = opt.max || 1;
+  svg.setAttribute("viewBox", `0 0 ${W} ${Hh}`); clear(svg);
+  if (opt.title) el("text", { x: 4, y: 16, "font-size": 14, "font-weight": 700, fill: C.acc }, svg, opt.title);
+  const n = items.length, bw = Math.min(70, (W - 40) / (n * 1.7)), gap = (W - n * bw) / (n + 1);
+  const base = Hh - bot, mh = base - top - 18;
+  el("line", { x1: 8, x2: W - 8, y1: base, y2: base, stroke: C.line }, svg);
+  items.forEach((it, i) => {
+    const x = gap + i * (bw + gap), h = Math.max(1, Math.min(1, it.v / max) * mh);
+    el("rect", { x, y: base - h, width: bw, height: h, fill: it.color || C.blue, rx: 3 }, svg);
+    el("text", { x: x + bw / 2, y: base - h - 6, "text-anchor": "middle", "font-size": 14, "font-weight": 700 }, svg, it.t !== undefined ? it.t : f2(it.v));
+    el("text", { x: x + bw / 2, y: base + 20, "text-anchor": "middle", "font-size": 13 }, svg, it.label);
+  });
+}
+function lineChart(svg, series, opt) {
+  // series: [{pts:[[x,y]...], color, dash, label}]
+  const W = opt.w || 640, Hh = opt.h || 240, l = 46, r = 14, t = 26, b = 30;
+  svg.setAttribute("viewBox", `0 0 ${W} ${Hh}`); clear(svg);
+  const [x0, x1] = opt.x, [y0, y1] = opt.y;
+  const X = v => l + (v - x0) / (x1 - x0) * (W - l - r), Y = v => t + (1 - (v - y0) / (y1 - y0)) * (Hh - t - b);
+  if (opt.title) el("text", { x: 4, y: 16, "font-size": 14, "font-weight": 700, fill: C.acc }, svg, opt.title);
+  (opt.yticks || []).forEach(v => { el("line", { x1: l, x2: W - r, y1: Y(v), y2: Y(v), stroke: "#e3e8ee" }, svg); el("text", { x: l - 6, y: Y(v) + 4, "text-anchor": "end", "font-size": 12, fill: C.mut }, svg, opt.yfmt ? opt.yfmt(v) : v); });
+  (opt.xticks || []).forEach(v => el("text", { x: X(v), y: Hh - 10, "text-anchor": "middle", "font-size": 12, fill: C.mut }, svg, opt.xfmt ? opt.xfmt(v) : v));
+  if (opt.xlabel) el("text", { x: W - r, y: Hh - b - 6, "text-anchor": "end", "font-size": 12, fill: C.mut }, svg, opt.xlabel);
+  (opt.hlines || []).forEach(h => { el("line", { x1: l, x2: W - r, y1: Y(h.y), y2: Y(h.y), stroke: h.color, "stroke-dasharray": "6 4", "stroke-width": 1.5 }, svg); el("text", { x: l + 6, y: Y(h.y) - 5, "text-anchor": "start", "font-size": 12, fill: h.color }, svg, h.label); });
+  series.forEach(s => {
+    if (!s.pts.length) return;
+    const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(Math.max(y0, Math.min(y1, p[1]))).toFixed(1)).join(" ");
+    el("path", { d, fill: "none", stroke: s.color, "stroke-width": s.w || 2.5, "stroke-dasharray": s.dash || "" }, svg);
+    if (s.dot) { const p = s.pts[s.pts.length - 1]; el("circle", { cx: X(p[0]), cy: Y(Math.max(y0, Math.min(y1, p[1]))), r: 5, fill: s.color }, svg); }
+  });
+  if (opt.marks) opt.marks.forEach(m => { el("circle", { cx: X(m.x), cy: Y(m.y), r: 6, fill: m.color || C.acc, stroke: "#fff", "stroke-width": 2 }, svg); if (m.label) el("text", { x: X(m.x) + (m.dx || 8), y: Y(m.y) - 8, "font-size": 13, "font-weight": 700, fill: m.color || C.acc, "text-anchor": m.anchor || "start" }, svg, m.label); });
+  if (opt.legend) { let lx = l + 4; opt.legend.forEach(g => { el("rect", { x: lx, y: Hh - b + 16 - 26 - 0, width: 0, height: 0 }, svg); }); }
+  return { X, Y };
+}
+function legend(div, items) { div.innerHTML = items.map(i => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:.88rem"><span style="width:18px;height:4px;background:${i.c};display:inline-block;border-radius:2px;${i.dash ? 'background:repeating-linear-gradient(90deg,' + i.c + ' 0 5px,transparent 5px 9px)' : ''}"></span>${i.t}</span>`).join(""); }
+function tabs(def) {
+  const show = () => { const h = (location.hash || "#" + def).slice(1); document.querySelectorAll("section.view").forEach(s => s.classList.toggle("on", s.id === h)); document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + h)); if (!document.querySelector("section.view.on")) { document.getElementById(def).classList.add("on"); } };
+  window.addEventListener("hashchange", show); show();
+}
+</script>
+<script>
+// ---------- ① thermostat ----------
+const DT = 0.05, STEPS = 800;
+let th, timer = null;
+bind("pp", v => v.toFixed(2)); bind("ps", v => v.toFixed(1)); bind("ta", v => v.toFixed(1));
+document.getElementById("mode").onchange = () => { resetTh(); render(); };
+function resetTh() { th = { T: 37, mu: 37, a: 0, t: 0, hist: [] }; }
+function stepTh() {
+  const Pp = val("pp"), Ps = val("ps"), Ta = val("ta"), mode = document.getElementById("mode").value;
+  const e = th.T - th.mu;
+  const dmu = (mode !== "act") ? (Ps * e - Pp * (th.mu - 37)) : 0;
+  const da = (mode !== "perc") ? (Ps * e - 0.3 * th.a) : -0.3 * th.a;
+  th.mu += DT * 2 * dmu;
+  th.a = Math.max(0, Math.min(5, th.a + DT * da));
+  th.T += DT * (0.3 * (Ta - th.T) - 0.3 * th.a);
+  th.t += DT;
+  const F = 0.5 * Ps * (th.T - th.mu) ** 2 + 0.5 * Pp * (th.mu - 37) ** 2;
+  th.hist.push({ t: th.t, T: th.T, mu: th.mu, a: th.a, F });
+}
+document.getElementById("play").onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; document.getElementById("play").textContent = "▶ 再生"; return; }
+  if (th.hist.length >= STEPS) resetTh();
+  document.getElementById("play").textContent = "❚❚ 停止";
+  timer = setInterval(() => { for (let k = 0; k < 6; k++) if (th.hist.length < STEPS) stepTh(); render(); if (th.hist.length >= STEPS) { clearInterval(timer); timer = null; document.getElementById("play").textContent = "▶ 再生"; } }, 30);
+};
+document.getElementById("reset").onclick = () => { if (timer) { clearInterval(timer); timer = null; document.getElementById("play").textContent = "▶ 再生"; } resetTh(); render(); };
+document.getElementById("weak").onclick = () => { setVal("pp", 0.1); document.getElementById("reset").click(); document.getElementById("play").click(); };
+document.getElementById("strong").onclick = () => { setVal("pp", 8); document.getElementById("reset").click(); document.getElementById("play").click(); };
+function preview() { // full run for resting state
+  const save = th; resetTh(); for (let k = 0; k < STEPS; k++) stepTh(); const full = th; th = save; return full;
+}
+let sig = "";
+function renderTh() {
+  const s = [val("pp"), val("ps"), val("ta"), document.getElementById("mode").value].join("|");
+  if (s !== sig && !timer) { sig = s; resetTh(); for (let k = 0; k < STEPS; k++) stepTh(); }
+  sig = s;
+  const h = th.hist, last = h[h.length - 1] || { T: 37, mu: 37, a: 0, F: 0 };
+  document.getElementById("tT").textContent = last.T.toFixed(2) + "°C";
+  document.getElementById("tMu").textContent = last.mu.toFixed(2) + "°C";
+  document.getElementById("tA").textContent = f2(last.a);
+  document.getElementById("tF").textContent = f2(last.F);
+  const tmax = STEPS * DT;
+  lineChart(document.getElementById("tempChart"), [
+    { pts: h.map(p => [p.t, p.T]), color: C.blue, dot: true },
+    { pts: h.map(p => [p.t, p.mu]), color: C.acc, dot: true }],
+    { w: 680, h: 250, x: [0, tmax], y: [36.5, 41], yticks: [37, 38, 39, 40, 41], yfmt: v => v + "°C", xticks: [0, 10, 20, 30, 40], xlabel: "時間", title: "体温と信念", hlines: [{ y: 37, color: C.line, label: "事前の予想 37°C" }] });
+  legend(document.getElementById("tLeg"), [{ c: C.blue, t: "本当の体温（感覚）" }, { c: C.acc, t: "信念 μ（推定した体温）" }]);
+  lineChart(document.getElementById("actChart"), [
+    { pts: h.map(p => [p.t, p.a]), color: C.deep, dot: true },
+    { pts: h.map(p => [p.t, Math.min(4, p.F)]), color: C.acc, dash: "6 4" }],
+    { w: 680, h: 200, x: [0, tmax], y: [0, 4], yticks: [0, 1, 2, 3, 4], xticks: [0, 10, 20, 30, 40], xlabel: "時間", title: "行為（窓の開き）と F" });
+  legend(document.getElementById("aLeg"), [{ c: C.deep, t: "窓の開き（行為）" }, { c: C.acc, t: "F", dash: 1 }]);
+}
+
+// ---------- ② F three ways ----------
+bind("q"); bind("pf2");
+document.getElementById("obs2").onchange = () => render();
+document.getElementById("opt").onclick = () => { const r = fCalc(val("q")); setVal("q", r.post[0].toFixed(2)); };
+function fCalc(qf) {
+  const pf = val("pf2"), jump = document.getElementById("obs2").value === "1";
+  const lik = jump ? [0.81, 0.01] : [0.19, 0.99];
+  const prior = [pf, 1 - pf], Q = [qf, 1 - qf];
+  const joint = [prior[0] * lik[0], prior[1] * lik[1]], py = joint[0] + joint[1];
+  const post = [joint[0] / py, joint[1] / py];
+  const energy = -(Q[0] * ln(joint[0]) + Q[1] * ln(joint[1])), ent = H(Q);
+  const comp = KL(Q, prior), acc = Q[0] * ln(lik[0]) + Q[1] * ln(lik[1]);
+  const div = KL(Q, post), S = -ln(py);
+  return { energy, ent, comp, acc, div, S, F: energy - ent, post, py };
+}
+function renderF() {
+  const r = fCalc(val("q"));
+  document.getElementById("fF").textContent = f2(r.F);
+  document.getElementById("fS").textContent = f2(r.S);
+  document.getElementById("fD").textContent = f2(r.div);
+  document.getElementById("fPost").textContent = f2(r.post[0], 3);
+  // three rows as stacked bars: positive part minus negative part
+  const svg = document.getElementById("threeRows"), W = 680, Hh = 250; svg.setAttribute("viewBox", `0 0 ${W} ${Hh}`); clear(svg);
+  el("text", { x: 4, y: 16, "font-size": 14, "font-weight": 700, fill: C.acc }, svg, "F の3つの書き方（棒の長さ ＝ F）");
+  const sc = (W - 300) / 6.5, x0 = 220;
+  const rows = [
+    ["① エネルギー − エントロピー", [[r.energy, C.blue, "エネルギー"]], [[r.ent, C.line, "−エントロピー"]]],
+    ["② 複雑さ − 正確さ", [[r.comp, C.acc, "複雑さ"], [-r.acc, C.blue, "−正確さ"]], []],
+    ["③ ダイバージェンス − 証拠", [[r.div, C.acc, "ダイバージェンス"], [r.S, C.ink, "サプライズ"]], []]];
+  rows.forEach(([name, pos, neg], i) => {
+    const y = 40 + i * 66; el("text", { x: 4, y: y + 22, "font-size": 14, "font-weight": 700 }, svg, name);
+    let x = x0;
+    pos.forEach(([v, c, lab]) => { const w = Math.max(0, v * sc); el("rect", { x, y, width: w, height: 32, fill: c, rx: 3 }, svg); if (w > 70) el("text", { x: x + 6, y: y + 21, "font-size": 12, fill: "#fff" }, svg, `${lab} ${f2(v)}`); x += w; });
+    neg.forEach(([v, c, lab]) => { const w = v * sc; el("rect", { x: x - w, y: y + 34, width: w, height: 10, fill: c, rx: 2 }, svg); el("text", { x: x - w - 4, y: y + 43, "font-size": 11, "text-anchor": "end", fill: C.mut }, svg, `${lab} ${f2(v)} を引く`); x -= w; });
+    el("line", { x1: x0 + r.F * sc, x2: x0 + r.F * sc, y1: y - 4, y2: y + 48, stroke: C.ink, "stroke-width": 2 }, svg);
+    const xe = x0 + pos.reduce((t, p) => t + Math.max(0, p[0]) * sc, 0);
+    el("text", { x: Math.max(xe, x0 + r.F * sc) + 8, y: y + 21, "font-size": 13, "font-weight": 700 }, svg, `F＝${f2(r.F)}`);
+  });
+  // F curve over Q
+  const pts = [], spts = [];
+  for (let q = 0.01; q <= 0.99001; q += 0.01) { const c = fCalc(q); pts.push([q, c.F]); spts.push([q, c.S]); }
+  lineChart(document.getElementById("fCurve"), [{ pts, color: C.acc }], { w: 680, h: 240, x: [0, 1], y: [0, 6], yticks: [0, 2, 4, 6], xticks: [0, 0.2, 0.4, 0.6, 0.8, 1], xlabel: "Q(カエル)", title: "Q を変えたときの F", hlines: [{ y: r.S, color: C.ink, label: "サプライズ " + f2(r.S) + "（F の下限）" }], marks: [{ x: val("q"), y: r.F, label: "いまの Q" }, { x: r.post[0], y: r.S, color: C.ink, label: "最小", dx: -8, anchor: "end" }] });
+  legend(document.getElementById("fLeg"), [{ c: C.acc, t: "F" }, { c: C.ink, t: "サプライズ（Q では変わらない）", dash: 1 }]);
+}
+function render() { renderTh(); renderF(); }
+resetTh();
+// open in a working state: show a finished run for the strong-prior creature
+for (let k = 0; k < STEPS; k++) stepTh();
+tabs("thermo"); render();
+</script>
+</body>
+</html>
